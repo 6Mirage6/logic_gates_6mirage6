@@ -90,7 +90,6 @@ const wires=document.getElementById('wires');
 const buttons=[];
 
 const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
-
 types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
@@ -150,6 +149,8 @@ workspace.addEventListener('click',e=>{
   if(shiftDown){x=snap(x);y=snap(y);}
   if(selectedType && selectedType!=='DELETE'){
     createNode(selectedType,x,y);
+    selectType(null);
+  }else if(selectedType==='DELETE'){
     selectType(null);
   }else if(selectedType==='DELETE'){
     selectType(null);
