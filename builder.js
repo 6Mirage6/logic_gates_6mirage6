@@ -9,6 +9,9 @@ const GATES = [
 ];
 
 const MAX_INPUTS=4;
+const GRID=20;
+let shiftDown=false;
+function snap(v){return Math.round(v/GRID)*GRID;}
 
 function evaluateGate(key, inputs){
   switch(key){
@@ -86,7 +89,8 @@ const workspace=document.getElementById('workspace');
 const wires=document.getElementById('wires');
 const buttons=[];
 
-const types=['INPUT','OUTPUT','DELETE',...GATES.map(g=>g.key)];
+const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
+
 types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
@@ -96,6 +100,20 @@ types.forEach(t=>{
   };
   palette.append(b);
   buttons.push(b);
+});
+const del=document.createElement('button');
+del.textContent='🗑️';
+del.dataset.type='DELETE';
+del.classList.add('delete');
+del.onclick=()=>{if(selectedType==='DELETE') selectType(null); else selectType('DELETE');};
+palette.append(del);
+buttons.push(del);
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Shift'){shiftDown=true;workspace.classList.add('grid');}
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='Shift'){shiftDown=false;workspace.classList.remove('grid');}
 });
 
 function selectType(t){
@@ -114,23 +132,37 @@ function selectType(t){
 }
 
 workspace.addEventListener('mousemove',e=>{
+  const rect=workspace.getBoundingClientRect();
   if(ghost){
-    const rect=workspace.getBoundingClientRect();
-    ghost.style.left=e.clientX-rect.left+'px';
-    ghost.style.top=e.clientY-rect.top+'px';
+    let x=e.clientX-rect.left;
+    let y=e.clientY-rect.top;
+    if(shiftDown){x=snap(x);y=snap(y);}
+    ghost.style.left=x+'px';
+    ghost.style.top=y+'px';
+
   }
   if(pending) updateGhostWire(e);
 });
 
 workspace.addEventListener('click',e=>{
   const rect=workspace.getBoundingClientRect();
+  let x=e.clientX-rect.left;
+  let y=e.clientY-rect.top;
+  if(shiftDown){x=snap(x);y=snap(y);}
   if(selectedType && selectedType!=='DELETE'){
-    createNode(selectedType,e.clientX-rect.left,e.clientY-rect.top);
+    createNode(selectedType,x,y);
     selectType(null);
   }else if(selectedType==='DELETE'){
     selectType(null);
   }else if(pending){
-    cancelPending();
+    if(e.target===workspace){
+      if(ghostWire){wires.removeChild(ghostWire);ghostWire=null;}
+      const j=createNode('JOINT',x,y);
+      connect(pending.from,j.inputs[0]);
+      startPending(j.output);
+    }else{
+      cancelPending();
+    }
   }
 });
 
@@ -163,10 +195,14 @@ function createNode(type,x,y){
   }else if(type==='OUTPUT'){
     const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
     const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.append(lamp);n.lamp=lamp;
+  }else if(type==='JOINT'){
+    const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
+    n.output=createPort(n,'out',0);el.append(n.output.el);
+    el.classList.add('joint');
   }else{
     const gate=GATES.find(g=>g.key===type);n.gate=gate;
     const cnt=gate.maxInputs===1?1:gate.minInputs;
-    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.append(p.el);}    
+    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.append(p.el);}
     n.output=createPort(n,'out',0);el.append(n.output.el);
     const label=document.createElement('span');label.textContent=type;el.append(label);
     if(gate.maxInputs!==1){
@@ -187,6 +223,9 @@ function layoutPorts(n){
     n.output.el.style.top=(h/2-6)+'px';
   }else if(n.type==='OUTPUT'){
     n.inputs[0].el.style.top=(h/2-6)+'px';
+  }else if(n.type==='JOINT'){
+    n.inputs[0].el.style.top=(h/2-6)+'px';
+    n.output.el.style.top=(h/2-6)+'px';
   }else{
     const cnt=n.inputs.length;
     const gap=h/(cnt+1);
@@ -236,8 +275,9 @@ function startDrag(n,e){
 
 function onDrag(e){
   if(!dragging) return;
-  const x=e.clientX-dragOffset.wsx-dragOffset.x;
-  const y=e.clientY-dragOffset.wsy-dragOffset.y;
+  let x=e.clientX-dragOffset.wsx-dragOffset.x;
+  let y=e.clientY-dragOffset.wsy-dragOffset.y;
+  if(shiftDown){x=snap(x);y=snap(y);}
   dragging.x=x;dragging.y=y;
   dragging.el.style.left=x+'px';
   dragging.el.style.top=y+'px';
@@ -285,10 +325,13 @@ function updateGhostWire(e){
   if(!ghostWire) return;
   const a=getPortCenter(pending.from);
   const rect=workspace.getBoundingClientRect();
+  let x=e.clientX-rect.left;
+  let y=e.clientY-rect.top;
+  if(shiftDown){x=snap(x);y=snap(y);}
   ghostWire.setAttribute('x1',a.x);
   ghostWire.setAttribute('y1',a.y);
-  ghostWire.setAttribute('x2',e.clientX-rect.left);
-  ghostWire.setAttribute('y2',e.clientY-rect.top);
+  ghostWire.setAttribute('x2',x);
+  ghostWire.setAttribute('y2',y);
 }
 
 function cancelPending(){
@@ -335,6 +378,9 @@ function evaluateNode(n,vis){
   if(n.type==='INPUT'){n.value=n.state;return n.value;}
   if(n.type==='OUTPUT'){
     const v=getInputValue(n.inputs[0],vis);n.value=v;n.lamp.classList.toggle('on',v===1);return v;
+  }
+  if(n.type==='JOINT'){
+    const v=getInputValue(n.inputs[0],vis);n.value=v;return v;
   }
   const vals=n.inputs.map(p=>getInputValue(p,vis));n.value=evaluateGate(n.type,vals);return n.value;
 }
