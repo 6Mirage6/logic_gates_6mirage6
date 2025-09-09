@@ -8,6 +8,8 @@ const GATES = [
   { key:"XNOR", name:"XNOR",      desc:"Инверсия XOR", minInputs:2 },
 ];
 
+const MAX_INPUTS=4;
+
 function evaluateGate(key, inputs){
   switch(key){
     case 'AND':  return inputs.every(v=>v===1)?1:0;
@@ -84,12 +86,14 @@ const workspace=document.getElementById('workspace');
 const wires=document.getElementById('wires');
 const buttons=[];
 
-const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
+const types=['INPUT','OUTPUT','DELETE',...GATES.map(g=>g.key)];
 types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
   b.dataset.type=t;
-  b.onclick=()=>selectType(t);
+  b.onclick=()=>{
+    if(selectedType===t) selectType(null); else selectType(t);
+  };
   palette.append(b);
   buttons.push(b);
 });
@@ -98,7 +102,8 @@ function selectType(t){
   selectedType=t;
   buttons.forEach(b=>b.classList.toggle('active',b.dataset.type===t));
   if(ghost){ghost.remove();ghost=null;}
-  if(t){
+  if(pending) cancelPending();
+  if(t && t!=='DELETE'){
     ghost=document.createElement('div');
     ghost.className='node ghost';
     const label=document.createElement('span');
@@ -119,8 +124,10 @@ workspace.addEventListener('mousemove',e=>{
 
 workspace.addEventListener('click',e=>{
   const rect=workspace.getBoundingClientRect();
-  if(selectedType){
+  if(selectedType && selectedType!=='DELETE'){
     createNode(selectedType,e.clientX-rect.left,e.clientY-rect.top);
+    selectType(null);
+  }else if(selectedType==='DELETE'){
     selectType(null);
   }else if(pending){
     cancelPending();
@@ -143,26 +150,113 @@ function createNode(type,x,y){
   el.className='node';
   el.style.left=x+'px';
   el.style.top=y+'px';
-  el.addEventListener('click',e=>e.stopPropagation());
+  el.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(selectedType==='DELETE') removeNode(n);
+  });
+  el.addEventListener('mousedown',e=>startDrag(n,e));
   n.el=el;
   if(type==='INPUT'){
     const sw=createSwitch(0,()=>{n.state=Number(sw.dataset.on);evaluate();});
     el.append(sw);n.state=0;
-    n.output=createPort(n,'out',0);n.output.el.style.top='14px';el.append(n.output.el);
+    n.output=createPort(n,'out',0);el.append(n.output.el);
   }else if(type==='OUTPUT'){
-    const p=createPort(n,'in',0);p.el.style.top='14px';n.inputs.push(p);el.append(p.el);
+    const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
     const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.append(lamp);n.lamp=lamp;
   }else{
-    const gate=GATES.find(g=>g.key===type);const cnt=gate.maxInputs===1?1:2;
-    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);p.el.style.top=(10+i*20)+'px';n.inputs.push(p);el.append(p.el);}
-    n.output=createPort(n,'out',0);n.output.el.style.top='14px';el.append(n.output.el);
+    const gate=GATES.find(g=>g.key===type);n.gate=gate;
+    const cnt=gate.maxInputs===1?1:gate.minInputs;
+    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.append(p.el);}    
+    n.output=createPort(n,'out',0);el.append(n.output.el);
     const label=document.createElement('span');label.textContent=type;el.append(label);
+    if(gate.maxInputs!==1){
+      const add=document.createElement('button');add.textContent='+';add.className='small add-input';add.onclick=e=>{e.stopPropagation();addInput(n);};
+      const sub=document.createElement('button');sub.textContent='-';sub.className='small remove-input';sub.onclick=e=>{e.stopPropagation();removeInput(n);};
+      el.append(add,sub);
+    }
   }
-  workspace.append(el);nodes.push(n);evaluate();
+  workspace.append(el);
+  layoutPorts(n);
+  nodes.push(n);
+  evaluate();
+}
+
+function layoutPorts(n){
+  const h=n.el.clientHeight;
+  if(n.type==='INPUT'){
+    n.output.el.style.top=(h/2-6)+'px';
+  }else if(n.type==='OUTPUT'){
+    n.inputs[0].el.style.top=(h/2-6)+'px';
+  }else{
+    const cnt=n.inputs.length;
+    const gap=h/(cnt+1);
+    n.inputs.forEach((p,i)=>{
+      p.index=i;
+      p.el.dataset.index=i;
+      p.el.style.top=(gap*(i+1)-6)+'px';
+    });
+    n.output.el.style.top=(h/2-6)+'px';
+  }
+}
+
+function addInput(n){
+  const max=n.gate.maxInputs||MAX_INPUTS;
+  if(n.inputs.length>=max) return;
+  const p=createPort(n,'in',n.inputs.length);
+  n.inputs.push(p);n.el.append(p.el);
+  layoutPorts(n);evaluate();
+}
+
+function removeInput(n){
+  if(n.inputs.length<=n.gate.minInputs) return;
+  const p=n.inputs.pop();
+  p.connections.slice().forEach(removeConnection);
+  n.el.removeChild(p.el);
+  layoutPorts(n);evaluate();
+}
+
+function removeNode(n){
+  [...n.inputs, n.output].filter(Boolean).forEach(p=>p.connections.slice().forEach(removeConnection));
+  workspace.removeChild(n.el);
+  nodes.splice(nodes.indexOf(n),1);
+  evaluate();
+}
+
+let dragging=null,dragOffset=null;
+function startDrag(n,e){
+  if(selectedType||pending) return;
+  if(e.target.classList.contains('port')||e.target.closest('.switch')||e.target.tagName==='BUTTON') return;
+  dragging=n;
+  const r=n.el.getBoundingClientRect();
+  const ws=workspace.getBoundingClientRect();
+  dragOffset={x:e.clientX-r.left,y:e.clientY-r.top,wsx:ws.left,wsy:ws.top};
+  document.addEventListener('mousemove',onDrag);
+  document.addEventListener('mouseup',endDrag);
+}
+
+function onDrag(e){
+  if(!dragging) return;
+  const x=e.clientX-dragOffset.wsx-dragOffset.x;
+  const y=e.clientY-dragOffset.wsy-dragOffset.y;
+  dragging.x=x;dragging.y=y;
+  dragging.el.style.left=x+'px';
+  dragging.el.style.top=y+'px';
+  evaluate();
+}
+
+function endDrag(){
+  dragging=null;dragOffset=null;
+  document.removeEventListener('mousemove',onDrag);
+  document.removeEventListener('mouseup',endDrag);
 }
 
 function portClicked(ev){
   ev.stopPropagation();
+  if(selectedType==='DELETE'){
+    const node=nodes.find(n=>n.id==ev.currentTarget.dataset.nodeId);
+    removeNode(node);
+    return;
+  }
   if(selectedType) selectType(null);
   const el=ev.currentTarget;
   const node=nodes.find(n=>n.id==el.dataset.nodeId);

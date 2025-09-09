@@ -20,8 +20,11 @@ tr{height:70px}
 .wire{stroke:#2a3154;stroke-width:2}
 .wire.on{stroke:red}
 .wire.ghost-wire{stroke:#888;stroke-dasharray:4 2}
-.node{position:absolute;background:#1f233a;border:1px solid #2a3154;border-radius:4px;padding:4px 8px;color:#e9ecff;font-size:14px}
+.node{position:absolute;background:#1f233a;border:1px solid #2a3154;border-radius:4px;color:#e9ecff;font-size:14px;width:80px;height:60px;display:flex;align-items:center;justify-content:center}
 .node.ghost{opacity:.5;pointer-events:none}
+.node button.small{position:absolute;width:16px;height:16px;padding:0;font-size:12px}
+.node button.add-input{top:2px;right:2px}
+.node button.remove-input{top:2px;right:20px}
 .port{width:12px;height:12px;border-radius:50%;background:#444;position:absolute;cursor:pointer}
 .port.in{left:-6px}
 .port.out{right:-6px}
