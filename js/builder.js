@@ -1,103 +1,29 @@
-const GATES = [
-  { key:"AND",  name:"AND (И)",   desc:"Выход 1, если все входы = 1", minInputs:2 },
-  { key:"OR",   name:"OR (ИЛИ)",  desc:"Выход 1, если хотя бы один вход = 1", minInputs:2 },
-  { key:"NOT",  name:"NOT (НЕ)",  desc:"Инвертирует единственный вход", minInputs:1, maxInputs:1 },
-  { key:"NAND", name:"NAND",      desc:"Инверсия AND", minInputs:2 },
-  { key:"NOR",  name:"NOR",       desc:"Инверсия OR", minInputs:2 },
-  { key:"XOR",  name:"XOR",       desc:"1 при нечётном числе единиц", minInputs:2 },
-  { key:"XNOR", name:"XNOR",      desc:"Инверсия XOR", minInputs:2 },
-];
+// The logic helpers are loaded globally via a plain script tag.
 
-const MAX_INPUTS=4;
-const GRID=20;
-let shiftDown=false;
+const GRID = 20;
+let shiftDown = false;
 function snap(v){return Math.round(v/GRID)*GRID;}
 
-function evaluateGate(key, inputs){
-  switch(key){
-    case 'AND':  return inputs.every(v=>v===1)?1:0;
-    case 'OR':   return inputs.some(v=>v===1)?1:0;
-    case 'NOT':  return inputs[0]===1?0:1;
-    case 'NAND': return evaluateGate('AND',inputs)^1;
-    case 'NOR':  return evaluateGate('OR',inputs)^1;
-    case 'XOR':  return inputs.reduce((acc,v)=>acc^v,0);
-    case 'XNOR': return evaluateGate('XOR',inputs)^1;
-    default: return 0;
-  }
-}
+const nodes = [];
+const connections = [];
+let nextId = 1;
+let selectedType = null;
+let pending = null;
+let ghost = null;
+let ghostWire = null;
 
-function createSwitch(initial=0,onToggle){
-  const sw=document.createElement('div');
-  sw.className='switch';
-  sw.dataset.on=initial;
-  const knob=document.createElement('div');
-  knob.className='knob';
-  sw.append(knob);
-  sw.onclick=e=>{
-    e.stopPropagation();
-    sw.dataset.on=sw.dataset.on==='1'?'0':'1';
-    onToggle();
-  };
-  return sw;
-}
+const palette = document.getElementById('palette');
+const workspace = document.getElementById('workspace');
+const wires = document.getElementById('wires');
+const buttons = [];
 
-function addRow(g){
-  const tr=document.createElement('tr');
-  const td1=document.createElement('td');
-  td1.textContent=g.name;
-  const td2=document.createElement('td');
-  const td3=document.createElement('td');
-  const td4=document.createElement('td');
-  td4.textContent=g.desc;
-
-  const n=g.maxInputs===1?1:2;
-  const switches=[];
-  for(let i=0;i<n;i++){
-    const sw=createSwitch(0,update);
-    td2.append(sw);
-    switches.push(sw);
-  }
-
-  const lamp=document.createElement('span');
-  lamp.className='lamp';
-  td3.append(lamp);
-
-  function update(){
-    const vals=switches.map(sw=>Number(sw.dataset.on));
-    const out=evaluateGate(g.key,vals);
-    lamp.classList.toggle('on',out===1);
-  }
-
-  update();
-  tr.append(td1,td2,td3,td4);
-  document.getElementById('tbody').append(tr);
-}
-
-GATES.forEach(addRow);
-
-// === Circuit builder ===
-const nodes=[];
-const connections=[];
-let nextId=1;
-let selectedType=null;
-let pending=null;
-let ghost=null;
-let ghostWire=null;
-
-const palette=document.getElementById('palette');
-const workspace=document.getElementById('workspace');
-const wires=document.getElementById('wires');
-const buttons=[];
-
-const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
+const types = ['INPUT','OUTPUT',...GATES.map(g=>g.key)];
 types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
   b.dataset.type=t;
-  b.onclick=()=>{
-    if(selectedType===t) selectType(null); else selectType(t);
-  };
-  palette.append(b);
+  b.onclick=()=>{if(selectedType===t) selectType(null); else selectType(t);};
+  palette.appendChild(b);
   buttons.push(b);
 });
 const del=document.createElement('button');
@@ -105,12 +31,69 @@ del.textContent='🗑️';
 del.dataset.type='DELETE';
 del.classList.add('delete');
 del.onclick=()=>{if(selectedType==='DELETE') selectType(null); else selectType('DELETE');};
-palette.append(del);
+palette.appendChild(del);
 buttons.push(del);
+
+const undoStack=[];
+const redoStack=[];
+let loading=false;
+
+function saveState(){
+  if(loading) return;
+  undoStack.push(serialize());
+  if(undoStack.length>100) undoStack.shift();
+  redoStack.length=0;
+}
+
+function serialize(){
+  return {
+    nextId,
+    nodes: nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,state:n.state,inputs:n.inputs.length})),
+    connections: connections.map(c=>({from:c.from.node.id,to:c.to.node.id,toPort:c.to.index,points:c.points.map(p=>({x:p.x,y:p.y}))}))
+  };
+}
+
+function loadState(s){
+  loading=true;
+  nodes.forEach(n=>workspace.removeChild(n.el));
+  nodes.length=0;
+  connections.forEach(c=>wires.removeChild(c.el));
+  connections.length=0;
+  nextId=1;
+  s.nodes.forEach(nd=>{
+    const n=createNode(nd.type, nd.x, nd.y, {id:nd.id, state:nd.state});
+    while(n.inputs.length<nd.inputs) addInput(n);
+  });
+  nextId=s.nextId;
+  s.connections.forEach(cd=>{
+    const from=nodes.find(n=>n.id===cd.from).output;
+    const to=nodes.find(n=>n.id===cd.to).inputs[cd.toPort];
+    connect(from,to,cd.points.map(p=>({x:p.x,y:p.y})), false);
+  });
+  evaluate();
+  loading=false;
+}
+
+function undo(){
+  if(undoStack.length<2) return;
+  const cur=undoStack.pop();
+  redoStack.push(cur);
+  loadState(undoStack[undoStack.length-1]);
+}
+
+function redo(){
+  if(!redoStack.length) return;
+  const state=redoStack.pop();
+  undoStack.push(state);
+  loadState(state);
+}
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Shift'){shiftDown=true;workspace.classList.add('grid');}
+  if(e.ctrlKey && (e.key==='z'||e.key==='Z')){e.preventDefault();undo();}
+  if(e.ctrlKey && (e.key==='y'||e.key==='Y')){e.preventDefault();redo();}
 });
+
 document.addEventListener('keyup',e=>{
   if(e.key==='Shift'){shiftDown=false;workspace.classList.remove('grid');}
 });
@@ -125,8 +108,8 @@ function selectType(t){
     ghost.className='node ghost';
     const label=document.createElement('span');
     label.textContent=t;
-    ghost.append(label);
-    workspace.append(ghost);
+    ghost.appendChild(label);
+    workspace.appendChild(ghost);
   }
 }
 
@@ -152,8 +135,6 @@ workspace.addEventListener('click',e=>{
     selectType(null);
   }else if(selectedType==='DELETE'){
     selectType(null);
-  }else if(selectedType==='DELETE'){
-    selectType(null);
   }else if(pending){
     if(e.target===workspace){
       pending.points.push({x,y});
@@ -174,41 +155,41 @@ function createPort(node,kind,index){
   return {node,kind,index,el,connections:[]};
 }
 
-function createNode(type,x,y){
-  const n={id:nextId++,type,x,y,inputs:[],output:null,state:0};
+function createNode(type,x,y,opts={}){
+  const n={id:opts.id??nextId++,type,x,y,inputs:[],output:null,state:opts.state||0};
   const el=document.createElement('div');
   el.className='node';
   el.style.left=x+'px';
   el.style.top=y+'px';
-  el.addEventListener('click',e=>{
-    e.stopPropagation();
-    if(selectedType==='DELETE') removeNode(n);
-  });
+  el.addEventListener('click',e=>{e.stopPropagation();if(selectedType==='DELETE') removeNode(n);});
   el.addEventListener('mousedown',e=>startDrag(n,e));
   n.el=el;
   if(type==='INPUT'){
-    const sw=createSwitch(0,()=>{n.state=Number(sw.dataset.on);evaluate();});
-    el.append(sw);n.state=0;
-    n.output=createPort(n,'out',0);el.append(n.output.el);
+    const sw=createSwitch(n.state,()=>{n.state=Number(sw.dataset.on);evaluate();saveState();});
+    el.appendChild(sw);n.state=n.state;
+    n.output=createPort(n,'out',0);el.appendChild(n.output.el);
   }else if(type==='OUTPUT'){
-    const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
-    const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.append(lamp);n.lamp=lamp;
+    const p=createPort(n,'in',0);n.inputs.push(p);el.appendChild(p.el);
+    const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.appendChild(lamp);n.lamp=lamp;
   }else{
     const gate=GATES.find(g=>g.key===type);n.gate=gate;
     const cnt=gate.maxInputs===1?1:gate.minInputs;
-    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.append(p.el);}
-    n.output=createPort(n,'out',0);el.append(n.output.el);
-    const label=document.createElement('span');label.textContent=type;el.append(label);
+    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.appendChild(p.el);}
+    n.output=createPort(n,'out',0);el.appendChild(n.output.el);
+    const label=document.createElement('span');label.textContent=type;el.appendChild(label);
     if(gate.maxInputs!==1){
       const add=document.createElement('button');add.textContent='+';add.className='small add-input';add.onclick=e=>{e.stopPropagation();addInput(n);};
       const sub=document.createElement('button');sub.textContent='-';sub.className='small remove-input';sub.onclick=e=>{e.stopPropagation();removeInput(n);};
-      el.append(add,sub);
+      el.appendChild(add);
+      el.appendChild(sub);
     }
   }
-  workspace.append(el);
+  workspace.appendChild(el);
   layoutPorts(n);
   nodes.push(n);
   evaluate();
+  saveState();
+  return n;
 }
 
 function layoutPorts(n){
@@ -220,11 +201,7 @@ function layoutPorts(n){
   }else{
     const cnt=n.inputs.length;
     const gap=h/(cnt+1);
-    n.inputs.forEach((p,i)=>{
-      p.index=i;
-      p.el.dataset.index=i;
-      p.el.style.top=(gap*(i+1)-6)+'px';
-    });
+    n.inputs.forEach((p,i)=>{p.index=i;p.el.dataset.index=i;p.el.style.top=(gap*(i+1)-6)+'px';});
     n.output.el.style.top=(h/2-6)+'px';
   }
 }
@@ -233,8 +210,8 @@ function addInput(n){
   const max=n.gate.maxInputs||MAX_INPUTS;
   if(n.inputs.length>=max) return;
   const p=createPort(n,'in',n.inputs.length);
-  n.inputs.push(p);n.el.append(p.el);
-  layoutPorts(n);evaluate();
+  n.inputs.push(p);n.el.appendChild(p.el);
+  layoutPorts(n);evaluate();saveState();
 }
 
 function removeInput(n){
@@ -242,14 +219,14 @@ function removeInput(n){
   const p=n.inputs.pop();
   p.connections.slice().forEach(removeConnection);
   n.el.removeChild(p.el);
-  layoutPorts(n);evaluate();
+  layoutPorts(n);evaluate();saveState();
 }
 
 function removeNode(n){
   [...n.inputs, n.output].filter(Boolean).forEach(p=>p.connections.slice().forEach(removeConnection));
   workspace.removeChild(n.el);
   nodes.splice(nodes.indexOf(n),1);
-  evaluate();
+  evaluate();saveState();
 }
 
 let dragging=null,dragOffset=null;
@@ -280,6 +257,7 @@ function onDrag(e){
 }
 
 function endDrag(){
+  if(dragging){saveState();}
   dragging=null;dragOffset=null;
   document.removeEventListener('mousemove',onDrag);
   document.removeEventListener('mouseup',endDrag);
@@ -311,7 +289,8 @@ function startPending(from){
   pending={from,points:[a]};
   ghostWire=document.createElementNS('http://www.w3.org/2000/svg','polyline');
   ghostWire.classList.add('wire','ghost-wire');
-  wires.append(ghostWire);
+  ghostWire.setAttribute('fill','none');
+  wires.appendChild(ghostWire);
   ghostWire.setAttribute('points',a.x+','+a.y);
 }
 
@@ -330,13 +309,15 @@ function cancelPending(){
   if(ghostWire){wires.removeChild(ghostWire);ghostWire=null;}
 }
 
-function connect(from,to,points){
+function connect(from,to,points,record=true){
   const el=document.createElementNS('http://www.w3.org/2000/svg','polyline');
   el.classList.add('wire');
-  wires.append(el);
+  el.setAttribute('fill','none');
+  wires.appendChild(el);
   const c={from,to,el,points};
   from.connections.push(c);to.connections.push(c);connections.push(c);
   evaluate();
+  if(record) saveState();
 }
 
 function removeConnection(c){
@@ -344,6 +325,7 @@ function removeConnection(c){
   c.to.connections=[];
   wires.removeChild(c.el);
   connections.splice(connections.indexOf(c),1);
+  evaluate();saveState();
 }
 
 function getPortCenter(p){
@@ -370,9 +352,6 @@ function evaluateNode(n,vis){
   if(n.type==='OUTPUT'){
     const v=getInputValue(n.inputs[0],vis);n.value=v;n.lamp.classList.toggle('on',v===1);return v;
   }
-  if(n.type==='JOINT'){
-    const v=getInputValue(n.inputs[0],vis);n.value=v;return v;
-  }
   const vals=n.inputs.map(p=>getInputValue(p,vis));n.value=evaluateGate(n.type,vals);return n.value;
 }
 
@@ -382,3 +361,5 @@ function evaluate(){
   nodes.forEach(n=>evaluateNode(n,vis));
   connections.forEach(c=>{c.el.classList.toggle('on',c.from.node.value===1);});
 }
+
+saveState();
