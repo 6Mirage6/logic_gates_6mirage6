@@ -1,4 +1,4 @@
-export const GATES = [
+window.GATES = [
   { key:"AND",  name:"AND (И)",   desc:"Выход 1, если все входы = 1", minInputs:2 },
   { key:"OR",   name:"OR (ИЛИ)",  desc:"Выход 1, если хотя бы один вход = 1", minInputs:2 },
   { key:"NOT",  name:"NOT (НЕ)",  desc:"Инвертирует единственный вход", minInputs:1, maxInputs:1 },
@@ -8,9 +8,9 @@ export const GATES = [
   { key:"XNOR", name:"XNOR",      desc:"Инверсия XOR", minInputs:2 }
 ];
 
-export const MAX_INPUTS = 4;
+window.MAX_INPUTS = 4;
 
-export function evaluateGate(key, inputs) {
+window.evaluateGate = function(key, inputs) {
   switch(key){
     case 'AND':  return inputs.every(v=>v===1)?1:0;
     case 'OR':   return inputs.some(v=>v===1)?1:0;
@@ -21,9 +21,9 @@ export function evaluateGate(key, inputs) {
     case 'XNOR': return evaluateGate('XOR',inputs)^1;
     default: return 0;
   }
-}
+};
 
-export function createSwitch(initial = 0, onToggle) {
+window.createSwitch = function(initial = 0, onToggle) {
   const sw = document.createElement('div');
   sw.className = 'switch';
   sw.dataset.on = initial;
@@ -36,4 +36,4 @@ export function createSwitch(initial = 0, onToggle) {
     onToggle();
   };
   return sw;
-}
+};
