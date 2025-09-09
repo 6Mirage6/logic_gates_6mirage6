@@ -90,6 +90,7 @@ const wires=document.getElementById('wires');
 const buttons=[];
 
 const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
+
 types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
@@ -138,6 +139,7 @@ workspace.addEventListener('mousemove',e=>{
     if(shiftDown){x=snap(x);y=snap(y);}
     ghost.style.left=x+'px';
     ghost.style.top=y+'px';
+
   }
   if(pending) updateGhostWire(e);
 });
