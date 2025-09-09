@@ -91,7 +91,9 @@ types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
   b.dataset.type=t;
-  b.onclick=()=>selectType(t);
+  b.onclick=()=>{
+    if(selectedType===t) selectType(null); else selectType(t);
+  };
   palette.append(b);
   buttons.push(b);
 });
@@ -100,6 +102,7 @@ function selectType(t){
   selectedType=t;
   buttons.forEach(b=>b.classList.toggle('active',b.dataset.type===t));
   if(ghost){ghost.remove();ghost=null;}
+  if(pending) cancelPending();
   if(t && t!=='DELETE'){
     ghost=document.createElement('div');
     ghost.className='node ghost';
@@ -172,8 +175,10 @@ function createNode(type,x,y){
       el.append(add,sub);
     }
   }
+  workspace.append(el);
   layoutPorts(n);
-  workspace.append(el);nodes.push(n);evaluate();
+  nodes.push(n);
+  evaluate();
 }
 
 function layoutPorts(n){

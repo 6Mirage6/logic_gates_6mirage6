@@ -2,7 +2,7 @@
 
 A simple in-browser environment for assembling logic circuits.
 
-- **Palette**: choose between `INPUT`, `OUTPUT` and gates `AND`, `OR`, `NOT`, `NAND`, `NOR`, `XOR`, `XNOR`.
+- **Palette**: choose between `INPUT`, `OUTPUT` and gates `AND`, `OR`, `NOT`, `NAND`, `NOR`, `XOR`, `XNOR`. Click the active tool again to clear the selection.
 - **Workspace**: click to place the selected component. A translucent ghost previews placement.
 - **Connections**: click an output port then an input port to draw a wire. Wires carrying a signal glow red. While linking, a ghost line follows the cursor.
 - **Simulation**: toggle an `INPUT` switch to send a signal. Outputs show a green lamp when they receive a signal through the circuit.
