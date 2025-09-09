@@ -1,0 +1,30 @@
+body{background:#0f1220;color:#e9ecff;font-family:system-ui,sans-serif;margin:0;padding:20px}
+h1{margin-bottom:20px}
+table{width:100%;border-collapse:collapse;background:#171a2b;border:1px solid #2a3154}
+th,td{border:1px solid #2a3154;padding:12px;text-align:center}
+th{background:#1f233a}
+tr{height:70px}
+.switch{cursor:pointer;display:inline-block;width:60px;height:28px;background:#232848;border-radius:14px;position:relative;margin:0 4px}
+.switch[data-on="1"]{background:#41d873}
+.switch .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;background:white;border-radius:50%;transition:0.2s}
+.switch[data-on="1"] .knob{left:35px}
+.lamp{width:22px;height:22px;border-radius:50%;display:inline-block;background:#2a2f52;margin-left:8px}
+.lamp.on{background:#41d873}
+
+#builder{margin-top:40px;display:flex;gap:20px}
+#palette{width:160px}
+#palette button{width:100%;margin-bottom:6px;padding:6px;background:#232848;color:#e9ecff;border:1px solid #2a3154;cursor:pointer}
+#palette button.active{outline:2px solid #41d873}
+#workspace{position:relative;flex:1;height:400px;background:#171a2b;border:1px solid #2a3154}
+#wires{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.wire{stroke:#2a3154;stroke-width:2}
+.wire.on{stroke:red}
+.wire.ghost-wire{stroke:#888;stroke-dasharray:4 2}
+.node{position:absolute;background:#1f233a;border:1px solid #2a3154;border-radius:4px;color:#e9ecff;font-size:14px;width:80px;height:60px;display:flex;align-items:center;justify-content:center}
+.node.ghost{opacity:.5;pointer-events:none}
+.node button.small{position:absolute;width:16px;height:16px;padding:0;font-size:12px}
+.node button.add-input{top:2px;right:2px}
+.node button.remove-input{top:2px;right:20px}
+.port{width:12px;height:12px;border-radius:50%;background:#444;position:absolute;cursor:pointer}
+.port.in{left:-6px}
+.port.out{right:-6px}
