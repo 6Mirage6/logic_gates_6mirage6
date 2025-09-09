@@ -1,4 +1,4 @@
-import {GATES, MAX_INPUTS, evaluateGate, createSwitch} from './logic.js';
+// The logic helpers are loaded globally via a plain script tag.
 
 const GRID = 20;
 let shiftDown = false;
@@ -23,7 +23,7 @@ types.forEach(t=>{
   b.textContent=t;
   b.dataset.type=t;
   b.onclick=()=>{if(selectedType===t) selectType(null); else selectType(t);};
-  palette.append(b);
+  palette.appendChild(b);
   buttons.push(b);
 });
 const del=document.createElement('button');
@@ -31,7 +31,7 @@ del.textContent='🗑️';
 del.dataset.type='DELETE';
 del.classList.add('delete');
 del.onclick=()=>{if(selectedType==='DELETE') selectType(null); else selectType('DELETE');};
-palette.append(del);
+palette.appendChild(del);
 buttons.push(del);
 
 const undoStack=[];
@@ -108,8 +108,8 @@ function selectType(t){
     ghost.className='node ghost';
     const label=document.createElement('span');
     label.textContent=t;
-    ghost.append(label);
-    workspace.append(ghost);
+    ghost.appendChild(label);
+    workspace.appendChild(ghost);
   }
 }
 
@@ -166,24 +166,25 @@ function createNode(type,x,y,opts={}){
   n.el=el;
   if(type==='INPUT'){
     const sw=createSwitch(n.state,()=>{n.state=Number(sw.dataset.on);evaluate();saveState();});
-    el.append(sw);n.state=n.state;
-    n.output=createPort(n,'out',0);el.append(n.output.el);
+    el.appendChild(sw);n.state=n.state;
+    n.output=createPort(n,'out',0);el.appendChild(n.output.el);
   }else if(type==='OUTPUT'){
-    const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
-    const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.append(lamp);n.lamp=lamp;
+    const p=createPort(n,'in',0);n.inputs.push(p);el.appendChild(p.el);
+    const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.appendChild(lamp);n.lamp=lamp;
   }else{
     const gate=GATES.find(g=>g.key===type);n.gate=gate;
     const cnt=gate.maxInputs===1?1:gate.minInputs;
-    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.append(p.el);}
-    n.output=createPort(n,'out',0);el.append(n.output.el);
-    const label=document.createElement('span');label.textContent=type;el.append(label);
+    for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);n.inputs.push(p);el.appendChild(p.el);}
+    n.output=createPort(n,'out',0);el.appendChild(n.output.el);
+    const label=document.createElement('span');label.textContent=type;el.appendChild(label);
     if(gate.maxInputs!==1){
       const add=document.createElement('button');add.textContent='+';add.className='small add-input';add.onclick=e=>{e.stopPropagation();addInput(n);};
       const sub=document.createElement('button');sub.textContent='-';sub.className='small remove-input';sub.onclick=e=>{e.stopPropagation();removeInput(n);};
-      el.append(add,sub);
+      el.appendChild(add);
+      el.appendChild(sub);
     }
   }
-  workspace.append(el);
+  workspace.appendChild(el);
   layoutPorts(n);
   nodes.push(n);
   evaluate();
@@ -209,7 +210,7 @@ function addInput(n){
   const max=n.gate.maxInputs||MAX_INPUTS;
   if(n.inputs.length>=max) return;
   const p=createPort(n,'in',n.inputs.length);
-  n.inputs.push(p);n.el.append(p.el);
+  n.inputs.push(p);n.el.appendChild(p.el);
   layoutPorts(n);evaluate();saveState();
 }
 
@@ -289,7 +290,7 @@ function startPending(from){
   ghostWire=document.createElementNS('http://www.w3.org/2000/svg','polyline');
   ghostWire.classList.add('wire','ghost-wire');
   ghostWire.setAttribute('fill','none');
-  wires.append(ghostWire);
+  wires.appendChild(ghostWire);
   ghostWire.setAttribute('points',a.x+','+a.y);
 }
 
@@ -312,7 +313,7 @@ function connect(from,to,points,record=true){
   const el=document.createElementNS('http://www.w3.org/2000/svg','polyline');
   el.classList.add('wire');
   el.setAttribute('fill','none');
-  wires.append(el);
+  wires.appendChild(el);
   const c={from,to,el,points};
   from.connections.push(c);to.connections.push(c);connections.push(c);
   evaluate();

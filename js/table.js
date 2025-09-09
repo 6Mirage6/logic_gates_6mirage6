@@ -1,4 +1,5 @@
-import {GATES, evaluateGate, createSwitch} from './logic.js';
+// Modules caused the page to break when opened from the filesystem.
+// The logic helpers are now loaded globally via a plain script tag.
 
 function addRow(g) {
   const tr = document.createElement('tr');
@@ -13,13 +14,13 @@ function addRow(g) {
   const switches = [];
   for (let i = 0; i < n; i++) {
     const sw = createSwitch(0, update);
-    td2.append(sw);
+    td2.appendChild(sw);
     switches.push(sw);
   }
 
   const lamp = document.createElement('span');
   lamp.className = 'lamp';
-  td3.append(lamp);
+  td3.appendChild(lamp);
 
   function update() {
     const vals = switches.map(sw => Number(sw.dataset.on));
@@ -28,8 +29,11 @@ function addRow(g) {
   }
 
   update();
-  tr.append(td1, td2, td3, td4);
-  document.getElementById('tbody').append(tr);
+  tr.appendChild(td1);
+  tr.appendChild(td2);
+  tr.appendChild(td3);
+  tr.appendChild(td4);
+  document.getElementById('tbody').appendChild(tr);
 }
 
 GATES.forEach(addRow);
