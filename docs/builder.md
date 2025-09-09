@@ -12,5 +12,6 @@ A simple in-browser environment for assembling logic circuits.
 - **Variable inputs**: gates (except `NOT`) have `+` and `-` buttons to adjust their number of input ports.
 - **Grid**: hold `Shift` to show a grid and snap placement or dragging to it.
 - **Wire anchors**: while drawing a wire, click empty space to add a bend and continue routing from there without extra ports.
+- **Undo/Redo**: press `Ctrl+Z` to undo the last change and `Ctrl+Y` to redo.
 
 Use this environment for quick experiments with logic gates directly in the browser.
