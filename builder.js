@@ -90,6 +90,7 @@ const wires=document.getElementById('wires');
 const buttons=[];
 
 const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
+
 types.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t;
@@ -367,6 +368,9 @@ function evaluateNode(n,vis){
   if(n.type==='INPUT'){n.value=n.state;return n.value;}
   if(n.type==='OUTPUT'){
     const v=getInputValue(n.inputs[0],vis);n.value=v;n.lamp.classList.toggle('on',v===1);return v;
+  }
+  if(n.type==='JOINT'){
+    const v=getInputValue(n.inputs[0],vis);n.value=v;return v;
   }
   const vals=n.inputs.map(p=>getInputValue(p,vis));n.value=evaluateGate(n.type,vals);return n.value;
 }
