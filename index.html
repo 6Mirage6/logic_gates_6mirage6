@@ -17,6 +17,18 @@
     .switch[data-on="1"] .knob{left:35px}
     .lamp{width:22px;height:22px;border-radius:50%;display:inline-block;background:#2a2f52;margin-left:8px}
     .lamp.on{background:#41d873}
+
+    #builder{margin-top:40px;display:flex;gap:20px}
+    #palette{width:160px}
+    #palette button{width:100%;margin-bottom:6px;padding:6px;background:#232848;color:#e9ecff;border:1px solid #2a3154;cursor:pointer}
+    #workspace{position:relative;flex:1;height:400px;background:#171a2b;border:1px solid #2a3154}
+    #wires{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+    .wire{stroke:#2a3154;stroke-width:2}
+    .wire.on{stroke:red}
+    .node{position:absolute;background:#1f233a;border:1px solid #2a3154;border-radius:4px;padding:4px 8px;color:#e9ecff;font-size:14px}
+    .port{width:12px;height:12px;border-radius:50%;background:#444;position:absolute;cursor:pointer}
+    .port.in{left:-6px}
+    .port.out{right:-6px}
   </style>
 </head>
 <body>
@@ -32,6 +44,13 @@
     </thead>
     <tbody id="tbody"></tbody>
   </table>
+
+  <div id="builder">
+    <div id="palette"></div>
+    <div id="workspace">
+      <svg id="wires"></svg>
+    </div>
+  </div>
 
   <script>
     const GATES = [
@@ -104,6 +123,64 @@
     }
 
     GATES.forEach(addRow);
+
+    // === Circuit builder ===
+    const nodes=[];const connections=[];let nextId=1;let selectedType=null;
+    const palette=document.getElementById('palette');
+    const workspace=document.getElementById('workspace');
+    const wires=document.getElementById('wires');
+
+    const types=['INPUT','OUTPUT',...GATES.map(g=>g.key)];
+    types.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>{selectedType=t;};palette.append(b);});
+
+    workspace.addEventListener('click',e=>{
+      if(!selectedType)return;const rect=workspace.getBoundingClientRect();
+      createNode(selectedType,e.clientX-rect.left,e.clientY-rect.top);
+    });
+
+    function createPort(node,kind,index){
+      const el=document.createElement('div');el.className='port '+kind;el.dataset.nodeId=node.id;el.dataset.kind=kind;el.dataset.index=index;
+      el.addEventListener('click',portClicked);return{node,kind,index,el,connections:[]};
+    }
+
+    function createNode(type,x,y){
+      const n={id:nextId++,type,x,y,inputs:[],output:null,state:0};
+      const el=document.createElement('div');el.className='node';el.style.left=x+'px';el.style.top=y+'px';n.el=el;
+      if(type==='INPUT'){
+        const sw=createSwitch(0,()=>{n.state=Number(sw.dataset.on);evaluate();});
+        el.append(sw);n.state=0;
+        n.output=createPort(n,'out',0);n.output.el.style.top='14px';el.append(n.output.el);
+      }else if(type==='OUTPUT'){
+        const p=createPort(n,'in',0);p.el.style.top='14px';n.inputs.push(p);el.append(p.el);
+        const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.append(lamp);n.lamp=lamp;
+      }else{
+        const gate=GATES.find(g=>g.key===type);const cnt=gate.maxInputs===1?1:2;
+        for(let i=0;i<cnt;i++){const p=createPort(n,'in',i);p.el.style.top=(10+i*20)+'px';n.inputs.push(p);el.append(p.el);} 
+        n.output=createPort(n,'out',0);n.output.el.style.top='14px';el.append(n.output.el);
+        const label=document.createElement('span');label.textContent=type;el.append(label);
+      }
+      workspace.append(el);nodes.push(n);evaluate();
+    }
+
+    let pending=null;
+    function portClicked(ev){ev.stopPropagation();const el=ev.currentTarget;const node=nodes.find(n=>n.id==el.dataset.nodeId);const port=(el.dataset.kind==='in'?node.inputs: [node.output])[el.dataset.index];
+      if(!pending){if(port.kind==='out')pending={from:port};}
+      else{if(port.kind==='in'&&port!==pending.from){if(port.connections.length)removeConnection(port.connections[0]);connect(pending.from,port);}pending=null;}
+    }
+
+    function connect(from,to){const line=document.createElementNS('http://www.w3.org/2000/svg','line');line.classList.add('wire');wires.append(line);
+      const c={from,to,line};from.connections.push(c);to.connections.push(c);connections.push(c);evaluate();}
+
+    function removeConnection(c){c.from.connections=c.from.connections.filter(x=>x!==c);c.to.connections=[];wires.removeChild(c.line);connections.splice(connections.indexOf(c),1);}
+
+    function getPortCenter(p){const ws=workspace.getBoundingClientRect();const r=p.el.getBoundingClientRect();return{x:r.left-ws.left+r.width/2,y:r.top-ws.top+r.height/2};}
+    function updateLine(c){const a=getPortCenter(c.from),b=getPortCenter(c.to);c.line.setAttribute('x1',a.x);c.line.setAttribute('y1',a.y);c.line.setAttribute('x2',b.x);c.line.setAttribute('y2',b.y);}
+
+    function getInputValue(p,vis){if(!p.connections.length)return 0;return evaluateNode(p.connections[0].from.node,vis);} 
+
+    function evaluateNode(n,vis){if(vis.has(n))return n.value;vis.add(n);if(n.type==='INPUT'){n.value=n.state;return n.value;}if(n.type==='OUTPUT'){const v=getInputValue(n.inputs[0],vis);n.value=v;n.lamp.classList.toggle('on',v===1);return v;}const vals=n.inputs.map(p=>getInputValue(p,vis));n.value=evaluateGate(n.type,vals);return n.value;}
+
+    function evaluate(){connections.forEach(updateLine);const vis=new Set();nodes.forEach(n=>evaluateNode(n,vis));connections.forEach(c=>{c.line.classList.toggle('on',c.from.node.value===1);});}
   </script>
 </body>
 </html>
