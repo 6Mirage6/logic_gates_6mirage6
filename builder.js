@@ -139,7 +139,6 @@ workspace.addEventListener('mousemove',e=>{
     if(shiftDown){x=snap(x);y=snap(y);}
     ghost.style.left=x+'px';
     ghost.style.top=y+'px';
-
   }
   if(pending) updateGhostWire(e);
 });
@@ -156,10 +155,8 @@ workspace.addEventListener('click',e=>{
     selectType(null);
   }else if(pending){
     if(e.target===workspace){
-      if(ghostWire){wires.removeChild(ghostWire);ghostWire=null;}
-      const j=createNode('JOINT',x,y);
-      connect(pending.from,j.inputs[0]);
-      startPending(j.output);
+      pending.points.push({x,y});
+      ghostWire.setAttribute('points',pending.points.map(p=>p.x+','+p.y).join(' '));
     }else{
       cancelPending();
     }
@@ -195,10 +192,6 @@ function createNode(type,x,y){
   }else if(type==='OUTPUT'){
     const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
     const lamp=document.createElement('span');lamp.className='lamp';lamp.style.marginLeft='20px';el.append(lamp);n.lamp=lamp;
-  }else if(type==='JOINT'){
-    const p=createPort(n,'in',0);n.inputs.push(p);el.append(p.el);
-    n.output=createPort(n,'out',0);el.append(n.output.el);
-    el.classList.add('joint');
   }else{
     const gate=GATES.find(g=>g.key===type);n.gate=gate;
     const cnt=gate.maxInputs===1?1:gate.minInputs;
@@ -223,9 +216,6 @@ function layoutPorts(n){
     n.output.el.style.top=(h/2-6)+'px';
   }else if(n.type==='OUTPUT'){
     n.inputs[0].el.style.top=(h/2-6)+'px';
-  }else if(n.type==='JOINT'){
-    n.inputs[0].el.style.top=(h/2-6)+'px';
-    n.output.el.style.top=(h/2-6)+'px';
   }else{
     const cnt=n.inputs.length;
     const gap=h/(cnt+1);
@@ -278,6 +268,10 @@ function onDrag(e){
   let x=e.clientX-dragOffset.wsx-dragOffset.x;
   let y=e.clientY-dragOffset.wsy-dragOffset.y;
   if(shiftDown){x=snap(x);y=snap(y);}
+  const maxX=workspace.clientWidth-dragging.el.offsetWidth;
+  const maxY=workspace.clientHeight-dragging.el.offsetHeight;
+  x=Math.max(0,Math.min(maxX,x));
+  y=Math.max(0,Math.min(maxY,y));
   dragging.x=x;dragging.y=y;
   dragging.el.style.left=x+'px';
   dragging.el.style.top=y+'px';
@@ -305,33 +299,29 @@ function portClicked(ev){
     if(port.kind==='out') startPending(port);
   }else{
     if(port.kind==='in'&&port!==pending.from){
-      connect(pending.from,port);
+      connect(pending.from,port,[...pending.points,getPortCenter(port)]);
     }
     cancelPending();
   }
 }
 
 function startPending(from){
-  pending={from};
-  ghostWire=document.createElementNS('http://www.w3.org/2000/svg','line');
+  const a=getPortCenter(from);
+  pending={from,points:[a]};
+  ghostWire=document.createElementNS('http://www.w3.org/2000/svg','polyline');
   ghostWire.classList.add('wire','ghost-wire');
   wires.append(ghostWire);
-  const a=getPortCenter(from);
-  ghostWire.setAttribute('x1',a.x);ghostWire.setAttribute('y1',a.y);
-  ghostWire.setAttribute('x2',a.x);ghostWire.setAttribute('y2',a.y);
+  ghostWire.setAttribute('points',a.x+','+a.y);
 }
 
 function updateGhostWire(e){
   if(!ghostWire) return;
-  const a=getPortCenter(pending.from);
   const rect=workspace.getBoundingClientRect();
   let x=e.clientX-rect.left;
   let y=e.clientY-rect.top;
   if(shiftDown){x=snap(x);y=snap(y);}
-  ghostWire.setAttribute('x1',a.x);
-  ghostWire.setAttribute('y1',a.y);
-  ghostWire.setAttribute('x2',x);
-  ghostWire.setAttribute('y2',y);
+  const pts=[...pending.points,{x,y}];
+  ghostWire.setAttribute('points',pts.map(p=>p.x+','+p.y).join(' '));
 }
 
 function cancelPending(){
@@ -339,11 +329,11 @@ function cancelPending(){
   if(ghostWire){wires.removeChild(ghostWire);ghostWire=null;}
 }
 
-function connect(from,to){
-  const line=document.createElementNS('http://www.w3.org/2000/svg','line');
-  line.classList.add('wire');
-  wires.append(line);
-  const c={from,to,line};
+function connect(from,to,points){
+  const el=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  el.classList.add('wire');
+  wires.append(el);
+  const c={from,to,el,points};
   from.connections.push(c);to.connections.push(c);connections.push(c);
   evaluate();
 }
@@ -351,7 +341,7 @@ function connect(from,to){
 function removeConnection(c){
   c.from.connections=c.from.connections.filter(x=>x!==c);
   c.to.connections=[];
-  wires.removeChild(c.line);
+  wires.removeChild(c.el);
   connections.splice(connections.indexOf(c),1);
 }
 
@@ -362,9 +352,9 @@ function getPortCenter(p){
 }
 
 function updateLine(c){
-  const a=getPortCenter(c.from),b=getPortCenter(c.to);
-  c.line.setAttribute('x1',a.x);c.line.setAttribute('y1',a.y);
-  c.line.setAttribute('x2',b.x);c.line.setAttribute('y2',b.y);
+  c.points[0]=getPortCenter(c.from);
+  c.points[c.points.length-1]=getPortCenter(c.to);
+  c.el.setAttribute('points',c.points.map(p=>p.x+','+p.y).join(' '));
 }
 
 function getInputValue(p,vis){
@@ -389,5 +379,5 @@ function evaluate(){
   connections.forEach(updateLine);
   const vis=new Set();
   nodes.forEach(n=>evaluateNode(n,vis));
-  connections.forEach(c=>{c.line.classList.toggle('on',c.from.node.value===1);});
+  connections.forEach(c=>{c.el.classList.toggle('on',c.from.node.value===1);});
 }
