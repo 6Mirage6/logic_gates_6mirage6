@@ -4,20 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Логические гейты — таблица</title>
-  <style>
-    body{background:#0f1220;color:#e9ecff;font-family:system-ui,sans-serif;margin:0;padding:20px}
-    h1{margin-bottom:20px}
-    table{width:100%;border-collapse:collapse;background:#171a2b;border:1px solid #2a3154}
-    th,td{border:1px solid #2a3154;padding:12px;text-align:center}
-    th{background:#1f233a}
-    tr{height:70px}
-    .switch{cursor:pointer;display:inline-block;width:60px;height:28px;background:#232848;border-radius:14px;position:relative;margin:0 4px}
-    .switch[data-on="1"]{background:#41d873}
-    .switch .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;background:white;border-radius:50%;transition:0.2s}
-    .switch[data-on="1"] .knob{left:35px}
-    .lamp{width:22px;height:22px;border-radius:50%;display:inline-block;background:#2a2f52;margin-left:8px}
-    .lamp.on{background:#41d873}
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <h1>Таблица логических гейтов</h1>
@@ -33,77 +20,21 @@
     <tbody id="tbody"></tbody>
   </table>
 
-  <script>
-    const GATES = [
-      { key:"AND",  name:"AND (И)",   desc:"Выход 1, если все входы = 1", minInputs:2 },
-      { key:"OR",   name:"OR (ИЛИ)",  desc:"Выход 1, если хотя бы один вход = 1", minInputs:2 },
-      { key:"NOT",  name:"NOT (НЕ)",  desc:"Инвертирует единственный вход", minInputs:1, maxInputs:1 },
-      { key:"NAND", name:"NAND",      desc:"Инверсия AND", minInputs:2 },
-      { key:"NOR",  name:"NOR",       desc:"Инверсия OR", minInputs:2 },
-      { key:"XOR",  name:"XOR",       desc:"1 при нечётном числе единиц", minInputs:2 },
-      { key:"XNOR", name:"XNOR",      desc:"Инверсия XOR", minInputs:2 },
-    ];
+  <div id="builder">
+    <div id="palette"></div>
+    <div id="workspace">
+      <svg id="wires"></svg>
+    </div>
+  </div>
 
-    function evaluateGate(key, inputs){
-      switch(key){
-        case 'AND':  return inputs.every(v=>v===1)?1:0;
-        case 'OR':   return inputs.some(v=>v===1)?1:0;
-        case 'NOT':  return inputs[0]===1?0:1;
-        case 'NAND': return evaluateGate('AND',inputs)^1;
-        case 'NOR':  return evaluateGate('OR',inputs)^1;
-        case 'XOR':  return inputs.reduce((acc,v)=>acc^v,0);
-        case 'XNOR': return evaluateGate('XOR',inputs)^1;
-        default: return 0;
-      }
-    }
+  <div id="hints">
+    <ul>
+      <li>Удерживайте Shift, чтобы показать сетку и ставить блоки по ней.</li>
+      <li>Кликните выход, затем вход, чтобы провести провод. Провод можно закреплять на пустом месте.</li>
+      <li>Перетаскивайте блоки для перемещения. Кнопка 🗑️ удаляет элементы.</li>
+    </ul>
+  </div>
 
-    function createSwitch(initial=0,onToggle){
-      const sw=document.createElement('div');
-      sw.className='switch';
-      sw.dataset.on=initial;
-      const knob=document.createElement('div');
-      knob.className='knob';
-      sw.append(knob);
-      sw.onclick=()=>{
-        sw.dataset.on=sw.dataset.on==='1'?'0':'1';
-        onToggle();
-      };
-      return sw;
-    }
-
-    function addRow(g){
-      const tr=document.createElement('tr');
-      const td1=document.createElement('td');
-      td1.textContent=g.name;
-      const td2=document.createElement('td');
-      const td3=document.createElement('td');
-      const td4=document.createElement('td');
-      td4.textContent=g.desc;
-
-      const n=g.maxInputs===1?1:2;
-      const switches=[];
-      for(let i=0;i<n;i++){
-        const sw=createSwitch(0,update);
-        td2.append(sw);
-        switches.push(sw);
-      }
-
-      const lamp=document.createElement('span');
-      lamp.className='lamp';
-      td3.append(lamp);
-
-      function update(){
-        const vals=switches.map(sw=>Number(sw.dataset.on));
-        const out=evaluateGate(g.key,vals);
-        lamp.classList.toggle('on',out===1);
-      }
-
-      update();
-      tr.append(td1,td2,td3,td4);
-      document.getElementById('tbody').append(tr);
-    }
-
-    GATES.forEach(addRow);
-  </script>
+  <script src="builder.js"></script>
 </body>
 </html>
